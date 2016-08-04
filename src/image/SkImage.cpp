@@ -139,6 +139,10 @@ SkData* SkImage::encode(SkPixelSerializer* serializer) const {
         return encoded.release();
     }
 
+    if (SkData* image_encode = effectiveSerializer->useImage(this)) {
+      return image_encode;
+    }
+
     SkBitmap bm;
     SkAutoPixmapUnlock apu;
     if (as_IB(this)->getROPixels(&bm) && bm.requestLock(&apu)) {

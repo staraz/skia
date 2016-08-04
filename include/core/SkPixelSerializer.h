@@ -11,6 +11,7 @@
 #include "SkRefCnt.h"
 #include "SkPixmap.h"
 
+class SkImage;
 class SkData;
 
 /**
@@ -29,6 +30,13 @@ public:
     }
 
     /**
+     * TODO(hackathon): A method to allow serialization based on an SkImage.
+     */
+    SkData* useImage(const SkImage* image) {
+      return this->onUseImage(image);
+    }
+
+    /**
      *  Call to get the client's version of encoding these pixels. If it
      *  returns NULL, serialize the raw pixels.
      */
@@ -40,6 +48,13 @@ protected:
      *  another version serialized (e.g. the result of this->encode()).
      */
     virtual bool onUseEncodedData(const void* data, size_t len) = 0;
+
+    /**
+     * TODO(hackathon): Serialize based on an image.
+     */
+    virtual SkData* onUseImage(const SkImage* image) {
+      return nullptr;
+    }
 
     /**
      *  If you want to encode these pixels, return the encoded data as an SkData
