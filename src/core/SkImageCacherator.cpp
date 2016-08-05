@@ -135,8 +135,6 @@ bool SkImageCacherator::lockAsBitmapOnlyIfAlreadyCached(SkBitmap* bitmap) {
 
 bool SkImageCacherator::tryLockAsBitmap(SkBitmap* bitmap, const SkImage* client,
                                         SkImage::CachingHint chint) {
-    return false;
-
     if (this->lockAsBitmapOnlyIfAlreadyCached(bitmap)) {
         return true;
     }
