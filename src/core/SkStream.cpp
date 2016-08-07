@@ -13,6 +13,8 @@
 #include "SkString.h"
 #include "SkOSFile.h"
 #include "SkTypes.h"
+#include "SkBitmap.h"
+#include "SkReadBuffer.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -409,6 +411,11 @@ const void* SkMemoryStream::getMemoryBase() {
 
 const void* SkMemoryStream::getAtPos() {
     return fData->bytes() + fOffset;
+}
+
+bool SkMemoryStream::readBitmap(SkBitmap* bitmap) {
+  SkReadBuffer buffer(this);
+  return buffer.readBitmap(bitmap);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////

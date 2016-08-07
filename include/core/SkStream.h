@@ -11,6 +11,7 @@
 #include "SkData.h"
 #include "SkRefCnt.h"
 #include "SkScalar.h"
+#include "SkBitmap.h"
 
 class SkStream;
 class SkStreamRewindable;
@@ -344,6 +345,7 @@ public:
 
     const void* getMemoryBase() override;
 
+    bool readBitmap(SkBitmap* bitmap);
 private:
     sk_sp<SkData>   fData;
     size_t          fOffset;
