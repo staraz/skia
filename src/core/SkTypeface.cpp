@@ -173,6 +173,7 @@ void SkTypeface::serialize(SkWStream* wstream) const {
 
     // Embed font data if it's a local font.
     if (isLocal && !desc.hasFontData()) {
+        // TODO(staraz): Maybe mark the desc here?
         desc.setFontData(this->onCreateFontData());
     }
     desc.serialize(wstream);
@@ -234,6 +235,9 @@ SkFontData* SkTypeface::createFontData() const {
 // This implementation is temporary until this method can be made pure virtual.
 SkFontData* SkTypeface::onCreateFontData() const {
     int index;
+    // TODO(staraz): mark the nameless font here for caching
+    // TODO(staraz): Gotcha!
+    // printf("SkTypeface::onCreateFontData...\n");
     SkAutoTDelete<SkStreamAsset> stream(this->onOpenStream(&index));
     return new SkFontData(stream.release(), index, nullptr, 0);
 };

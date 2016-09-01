@@ -28,11 +28,13 @@ SkStreamAsset* SkTypeface_FCI::onOpenStream(int* ttcIndex) const {
 }
 
 void SkTypeface_FCI::onGetFontDescriptor(SkFontDescriptor* desc, bool* isLocalStream) const {
+    // TODO(staraz): This is the culprit for having the nameless fonts
     SkString name;
     this->getFamilyName(&name);
     desc->setFamilyName(name.c_str());
     desc->setStyle(this->fontStyle());
     *isLocalStream = SkToBool(this->getLocalStream());
+    // printf("SkFontMgr_fontconfig::onGetFontDescriptor...\n");
 }
 
 ///////////////////////////////////////////////////////////////////////////////

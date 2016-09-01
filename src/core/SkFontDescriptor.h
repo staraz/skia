@@ -8,6 +8,9 @@
 #ifndef SkFontDescriptor_DEFINED
 #define SkFontDescriptor_DEFINED
 
+#include <string>
+#include <unordered_map>
+
 #include "SkFixed.h"
 #include "SkStream.h"
 #include "SkString.h"
@@ -23,11 +26,11 @@ public:
             fAxis[i] = axis[i];
         }
     }
-    SkFontData(const SkFontData& that)
-        : fStream(that.fStream->duplicate())
-        , fIndex(that.fIndex)
-        , fAxisCount(that.fAxisCount)
-        , fAxis(fAxisCount)
+    SkFontData(const SkFontData& that):
+        fStream(that.hasStream() ? that.fStream->duplicate() : nullptr),
+        fIndex(that.fIndex)
+        , fAxisCount(that.fAxisCount),
+        fAxis(that.fAxisCount)
     {
         for (int i = 0; i < fAxisCount; ++i) {
             fAxis[i] = that.fAxis[i];
@@ -48,9 +51,14 @@ private:
     SkAutoSTMalloc<4, SkFixed> fAxis;
 };
 
-class SkFontDescriptor : SkNoncopyable {
+// TODO(staraz): Kludge: overrides SkNoncopyable for caching
+class SkFontDescriptor /*: SkNoncopyable*/ {
 public:
-    SkFontDescriptor();
+    SkFontDescriptor(){}
+    explicit SkFontDescriptor(const SkFontDescriptor& other);
+
+    SkFontDescriptor& operator=(const SkFontDescriptor& other);
+
     // Does not affect ownership of SkStream.
     static bool Deserialize(SkStream*, SkFontDescriptor* result);
 
@@ -79,6 +87,8 @@ private:
     SkAutoTDelete<SkFontData> fFontData;
 
     SkFontStyle fStyle;
-};
+
+    static std::unordered_map<std::string, SkFontDescriptor> fSerializeCache;
+ };
 
 #endif // SkFontDescriptor_DEFINED
