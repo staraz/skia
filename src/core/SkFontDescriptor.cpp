@@ -95,7 +95,6 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
         switch (id) {
             case kCacheIndex:
             {
-                // printf("Obtaining font from cache!\n");
                 SkString key;
                 read_string(stream, &key);
                 auto search = deserializeCache.find(std::string(key.c_str()));
@@ -110,16 +109,13 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
             }
             // Read the SkFontDescptor from stream and add it to cache
             case kFontFamilyName:
-                // printf("ID is kFontFamilyName!\n");
                 read_string(stream, &result->fFamilyName);
                 printf("Family name: %s\n", result->fFullName.c_str());
                 break;
             case kFullName:
-                // printf("ID is kFullName!\n");
                 read_string(stream, &result->fFullName);
                 break;
             case kPostscriptName:
-                // printf("ID is kPostscriptName!\n");
                 read_string(stream, &result->fPostscriptName);
                 break;
             case kFontAxes:
@@ -131,11 +127,9 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
                 }
                 break;
             case kFontIndex:
-                // printf("ID is kFontIndex!\n");
                 index = read_uint(stream);
                 break;
             case kFontFileName:  // Remove when MIN_PICTURE_VERSION > 41
-                // printf("ID is kFontFileName!\n");
                 skip_string(stream);
                 break;
             default:
@@ -199,10 +193,6 @@ void SkFontDescriptor::serialize(SkWStream* stream) {
         // those
         if (fFamilyName.size())
             fSerializeCache[std::string(fFamilyName.c_str())] = *this;
-        // printf("SkFontDescriptor added to cache.\n");
-        // printf("Family name: %s\n", fFamilyName.c_str());
-        // printf("Full name: %s\n", fFullName.c_str());
-
     } else {
         // printf("Sending cache ID instead.\n");
         // Font is already cached. Serialize the key only
