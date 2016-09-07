@@ -96,7 +96,6 @@ BASE_SRCS_ALL = struct(
         "src/codec/*",
         "src/device/xps/*",  # Windows-only. Move to ports?
         "src/doc/*_XPS.cpp",  # Windows-only. Move to ports?
-        "src/fonts/SkFontMgr_fontconfig.cpp",
         "src/gpu/gl/android/*",
         "src/gpu/gl/egl/*",
         "src/gpu/gl/glfw/*",
@@ -144,7 +143,6 @@ BASE_SRCS_UNIX = struct(
     include = [
         "src/android/*",
         "src/codec/*",
-        "src/fonts/SkFontMgr_fontconfig.cpp",
         "src/gpu/gl/GrGLDefaultInterface_none.cpp",
         "src/images/*",
         "src/opts/**/*.cpp",
@@ -224,8 +222,6 @@ BASE_SRCS_ANDROID = struct(
         "src/ports/*nacl*",
         "src/ports/*win*",
         "src/ports/SkDebug_stdio.cpp",
-        "src/ports/SkFontConfigInterface_direct_factory.cpp",
-        "src/ports/SkFontConfigInterface_direct_google3_factory.cpp",
         "src/ports/SkFontMgr_custom_directory_factory.cpp",
         "src/ports/SkFontMgr_custom_embedded_factory.cpp",
         "src/ports/SkFontMgr_custom_empty_factory.cpp",
@@ -280,8 +276,6 @@ BASE_SRCS_IOS = struct(
         "src/ports/*nacl*",
         "src/ports/*win*",
         "src/ports/SkFontMgr_custom.cpp",
-        "src/ports/SkFontConfigInterface_direct_factory.cpp",
-        "src/ports/SkFontConfigInterface_direct_google3_factory.cpp",
         "src/ports/SkFontMgr_custom_directory_factory.cpp",
         "src/ports/SkFontMgr_custom_embedded_factory.cpp",
         "src/ports/SkFontMgr_custom_empty_factory.cpp",
@@ -623,6 +617,7 @@ DEFINES_ALL = [
     "SK_SUPPORT_LEGACY_PICTURE_PTR",
     "SK_SUPPORT_LEGACY_TYPEFACE_PTR",
     "SK_SUPPORT_LEGACY_XFERMODE_PTR",
+    "SK_SUPPORT_LEGACY_DATA_FACTORIES",
 ]
 
 ################################################################################

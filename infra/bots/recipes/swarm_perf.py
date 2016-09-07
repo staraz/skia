@@ -7,12 +7,16 @@
 
 
 DEPS = [
+  'build/file',
+  'core',
   'recipe_engine/json',
   'recipe_engine/path',
   'recipe_engine/platform',
   'recipe_engine/properties',
   'recipe_engine/raw_io',
-  'skia',
+  'run',
+  'flavor',
+  'vars',
 ]
 
 
@@ -20,8 +24,9 @@ TEST_BUILDERS = {
   'client.skia': {
     'skiabot-linux-swarm-000': [
       'Perf-Win-MSVC-GCE-CPU-AVX2-x86_64-Release',
+      'Perf-Win-MSVC-GCE-CPU-AVX2-x86_64-Debug',
       'Perf-Win8-MSVC-ShuttleB-GPU-HD4600-x86_64-Release-Trybot',
-      'Test-Ubuntu-GCC-ShuttleA-GPU-GTX550Ti-x86_64-Release-Valgrind',
+      'Perf-Ubuntu-GCC-ShuttleA-GPU-GTX550Ti-x86_64-Release-Valgrind',
       'Perf-Android-GCC-Nexus7-GPU-Tegra3-Arm7-Release',
       'Perf-Ubuntu-GCC-ShuttleA-GPU-GTX550Ti-x86_64-Release-VisualBench',
     ],
@@ -29,11 +34,86 @@ TEST_BUILDERS = {
 }
 
 
+def perf_steps(api):
+  """Run Skia benchmarks."""
+  if api.vars.upload_perf_results:
+    api.flavor.create_clean_device_dir(
+        api.flavor.device_dirs.perf_data_dir)
+
+  # Run nanobench.
+  properties = [
+    '--properties',
+    'gitHash',      api.vars.got_revision,
+    'build_number', api.vars.build_number,
+  ]
+  if api.vars.is_trybot:
+    properties.extend([
+      'issue',    api.vars.issue,
+      'patchset', api.vars.patchset,
+    ])
+
+  target = 'nanobench'
+  if 'VisualBench' in api.vars.builder_name:
+    target = 'visualbench'
+  args = [
+      target,
+      '--undefok',   # This helps branches that may not know new flags.
+      '-i',       api.flavor.device_dirs.resource_dir,
+      '--skps',   api.flavor.device_dirs.skp_dir,
+      '--images', api.flavor.device_path_join(
+          api.flavor.device_dirs.images_dir, 'nanobench'),
+  ]
+
+  skip_flag = None
+  if api.vars.builder_cfg.get('cpu_or_gpu') == 'CPU':
+    skip_flag = '--nogpu'
+  elif api.vars.builder_cfg.get('cpu_or_gpu') == 'GPU':
+    skip_flag = '--nocpu'
+  if skip_flag:
+    args.append(skip_flag)
+  args.extend(api.vars.nanobench_flags)
+
+  if api.vars.upload_perf_results:
+    json_path = api.flavor.device_path_join(
+        api.flavor.device_dirs.perf_data_dir,
+        'nanobench_%s.json' % api.vars.got_revision)
+    args.extend(['--outResultsFile', json_path])
+    args.extend(properties)
+
+    keys_blacklist = ['configuration', 'role', 'is_trybot']
+    args.append('--key')
+    for k in sorted(api.vars.builder_cfg.keys()):
+      if not k in keys_blacklist:
+        args.extend([k, api.vars.builder_cfg[k]])
+
+  api.run(api.flavor.step, target, cmd=args,
+                abort_on_failure=False,
+                env=api.vars.default_env)
+
+  # See skia:2789.
+  if ('Valgrind' in api.vars.builder_name and
+      api.vars.builder_cfg.get('cpu_or_gpu') == 'GPU'):
+    abandonGpuContext = list(args)
+    abandonGpuContext.extend(['--abandonGpuContext', '--nocpu'])
+    api.run(api.flavor.step,
+                  '%s --abandonGpuContext' % target,
+                  cmd=abandonGpuContext, abort_on_failure=False,
+                  env=api.vars.default_env)
+
+  # Copy results to swarming out dir.
+  if api.vars.upload_perf_results:
+    api.file.makedirs('perf_dir', api.vars.perf_data_dir)
+    api.flavor.copy_directory_contents_to_host(
+        api.flavor.device_dirs.perf_data_dir,
+        api.vars.perf_data_dir)
+
+
 def RunSteps(api):
-  api.skia.setup()
-  api.skia.perf_steps()
-  api.skia.cleanup_steps()
-  api.skia.check_failure()
+  api.core.setup()
+  api.flavor.install()
+  perf_steps(api)
+  api.flavor.cleanup_steps()
+  api.run.check_failure()
 
 
 def GenTests(api):

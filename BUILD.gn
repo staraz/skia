@@ -56,6 +56,19 @@ config("skia_private") {
     "third_party/etc1",
     "third_party/ktx",
   ]
+
+  defines = [
+    "SK_GAMMA_APPLY_TO_A8",
+
+    "SK_HAS_GIF_LIBRARY",
+    "SK_HAS_JPEG_LIBRARY",
+    "SK_HAS_PNG_LIBRARY",
+    "SK_HAS_WEBP_LIBRARY",
+
+    "TURBO_HAS_565",
+    "TURBO_HAS_CROP",
+    "TURBO_HAS_SKIP",
+  ]
 }
 
 # Any code that's linked into Skia-the-library should use this config via += skia_library_configs.
@@ -161,13 +174,6 @@ component("skia") {
     "//third_party/zlib",
   ]
 
-  defines = [
-    "SK_HAS_GIF_LIBRARY",
-    "SK_HAS_JPEG_LIBRARY",
-    "SK_HAS_PNG_LIBRARY",
-    "SK_HAS_WEBP_LIBRARY",
-  ]
-
   libs = [ "pthread" ]
 
   sources = []
@@ -254,12 +260,13 @@ component("skia") {
       "third_party:freetype2",
     ]
     sources += [
-      "src/fonts/SkFontMgr_fontconfig.cpp",
       "src/ports/SkFontConfigInterface_direct.cpp",
       "src/ports/SkFontConfigInterface_direct_factory.cpp",
       "src/ports/SkFontHost_FreeType.cpp",
       "src/ports/SkFontHost_FreeType_common.cpp",
-      "src/ports/SkFontHost_fontconfig.cpp",
+      "src/ports/SkFontMgr_FontConfigInterface.cpp",
+      "src/ports/SkFontMgr_fontconfig.cpp",
+      "src/ports/SkFontMgr_fontconfig_factory.cpp",
     ]
   }
 
@@ -277,10 +284,23 @@ component("skia") {
   }
 }
 
+skia_h_headers = exec_script("gyp/find.py",
+                             [ "*.h" ] + rebase_path(skia_public_includes),
+                             "list lines",
+                             []) -
+                 [
+                   rebase_path("include/gpu/gl/GrGLConfig_chrome.h"),
+                   rebase_path("include/gpu/vk/GrVkBackendContext.h"),
+                   rebase_path("include/gpu/vk/GrVkDefines.h"),
+                   rebase_path("include/gpu/vk/GrVkInterface.h"),
+                   rebase_path("include/gpu/vk/GrVkTypes.h"),
+                   rebase_path("include/ports/SkFontMgr_fontconfig.h"),
+                 ]
+
 action("skia.h") {
   script = "gn/echo_headers.py"
   args = [ rebase_path("$target_gen_dir/skia.h", root_build_dir) ] +
-         rebase_path(skia_public_includes, root_build_dir)
+         rebase_path(skia_h_headers, root_build_dir)
   outputs = [
     "$target_gen_dir/skia.h",
   ]
@@ -300,7 +320,9 @@ executable("fiddle") {
   deps = [
     ":skia",
     ":skia.h",
+    ":tool_utils",
   ]
+  testonly = true
 }
 
 template("test_lib") {
@@ -341,14 +363,20 @@ test_lib("gpu_tool_utils") {
   libs = []
 
   if (is_linux) {
-    sources += [ "tools/gpu/gl/glx/CreatePlatformGLTestContext_glx.cpp" ]
+    sources += [
+        "src/gpu/gl/glx/GrGLCreateNativeInterface_glx.cpp",
+        "tools/gpu/gl/glx/CreatePlatformGLTestContext_glx.cpp",
+    ]
     libs += [
       "GL",
       "GLU",
       "X11",
     ]
   } else if (is_mac) {
-    sources += [ "tools/gpu/gl/mac/CreatePlatformGLTestContext_mac.cpp" ]
+    sources += [
+        "src/gpu/gl/mac/GrGLCreateNativeInterface_mac.cpp",
+        "tools/gpu/gl/mac/CreatePlatformGLTestContext_mac.cpp",
+    ]
     libs += [ "OpenGL.framework" ]
   }
 }
@@ -368,6 +396,7 @@ test_lib("flags") {
 test_lib("tool_utils") {
   public_include_dirs = [
     "tools",
+    "tools/debugger",
     "tools/timer",
   ]
   sources = [
@@ -377,6 +406,12 @@ test_lib("tool_utils") {
     "tools/ProcStats.cpp",
     "tools/Resources.cpp",
     "tools/ThermalManager.cpp",
+    "tools/UrlDataManager.cpp",
+    "tools/debugger/SkDebugCanvas.cpp",
+    "tools/debugger/SkDrawCommand.cpp",
+    "tools/debugger/SkJsonWriteBuffer.cpp",
+    "tools/debugger/SkObjectParser.cpp",
+    "tools/debugger/SkOverdrawMode.cpp",
     "tools/picture_utils.cpp",
     "tools/random_parse_path.cpp",
     "tools/sk_tool_utils.cpp",
@@ -385,13 +420,17 @@ test_lib("tool_utils") {
   ]
   deps = [
     ":flags",
+    "//third_party/libpng",
+  ]
+  public_deps = [
+    "//third_party/jsoncpp",
   ]
 }
 
 gm_sources = exec_script("gyp/find.py",
                          [
-                           rebase_path("gm"),
                            "*.c*",
+                           rebase_path("gm"),
                          ],
                          "list lines",
                          [])
@@ -405,10 +444,38 @@ test_lib("gm") {
   ]
 }
 
+tests_sources = exec_script("gyp/find.py",
+                            [
+                              "*.c*",
+                              rebase_path("tests"),
+                            ],
+                            "list lines",
+                            [])
+
+test_lib("tests") {
+  public_include_dirs = [ "tests" ]
+  sources = tests_sources - [
+              rebase_path("tests/FontMgrAndroidParserTest.cpp"),  # Android only
+              rebase_path("tests/PathOpsSkpClipTest.cpp"),  # alternate main
+              rebase_path("tests/RTConfRegistryTest.cpp"),  # TODO: delete
+              rebase_path("tests/SkSLErrorTest.cpp"),   # TODO: make work
+              rebase_path("tests/SkpSkGrTest.cpp"),  # doesn't compile
+              rebase_path("tests/skia_test.cpp"),  # alternate main
+            ]
+  deps = [
+    ":flags",
+    ":gpu_tool_utils",
+    ":skia",
+    ":tool_utils",
+    "//third_party/libpng",
+    "//third_party/zlib",
+  ]
+}
+
 bench_sources = exec_script("gyp/find.py",
                             [
-                              rebase_path("bench"),
                               "*.c*",
+                              rebase_path("bench"),
                             ],
                             "list lines",
                             [])
@@ -435,9 +502,6 @@ if (!is_component_build) {  # Our test tools use many non-SK_API APIs...
       "dm/DM.cpp",
       "dm/DMJsonWriter.cpp",
       "dm/DMSrcSink.cpp",
-
-      # TODO: tests for real
-      "tests/Test.cpp",
     ]
     include_dirs = [ "tests" ]
     deps = [
@@ -445,6 +509,7 @@ if (!is_component_build) {  # Our test tools use many non-SK_API APIs...
       ":gm",
       ":gpu_tool_utils",
       ":skia",
+      ":tests",
       ":tool_utils",
       "//third_party/jsoncpp",
       "//third_party/libpng",

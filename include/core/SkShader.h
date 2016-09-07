@@ -18,6 +18,7 @@
 
 class SkColorFilter;
 class SkColorSpace;
+class SkImage;
 class SkPath;
 class SkPicture;
 class SkXfermode;
@@ -239,6 +240,18 @@ public:
 
     bool isABitmap() const {
         return this->isABitmap(nullptr, nullptr, nullptr);
+    }
+
+    /**
+     *  Iff this shader is backed by a single SkImage, return its ptr (the caller must ref this
+     *  if they want to keep it longer than the lifetime of the shader). If not, return nullptr.
+     */
+    SkImage* isAImage(SkMatrix* localMatrix, TileMode xy[2]) const {
+        return this->onIsAImage(localMatrix, xy);
+    }
+
+    bool isAImage() const {
+        return this->isAImage(nullptr, nullptr) != nullptr;
     }
 
     /**
@@ -486,6 +499,7 @@ public:
 
     SK_TO_STRING_VIRT()
     SK_DEFINE_FLATTENABLE_TYPE(SkShader)
+    SK_DECLARE_FLATTENABLE_REGISTRAR_GROUP()
 
 protected:
     void flatten(SkWriteBuffer&) const override;
@@ -512,6 +526,10 @@ protected:
         return false;
     }
 
+    virtual SkImage* onIsAImage(SkMatrix*, TileMode[2]) const {
+        return nullptr;
+    }
+
 private:
     // This is essentially const, but not officially so it can be modified in
     // constructors.
@@ -519,7 +537,7 @@ private:
 
     // So the SkLocalMatrixShader can whack fLocalMatrix in its SkReadBuffer constructor.
     friend class SkLocalMatrixShader;
-    friend class SkBitmapProcShader;    // for computeTotalInverse()
+    friend class SkBitmapProcLegacyShader;    // for computeTotalInverse()
 
     typedef SkFlattenable INHERITED;
 };

@@ -8,7 +8,6 @@
 #include <functional>
 #include <initializer_list>
 #include <vector>
-#include "DMGpuSupport.h"
 
 #include "SkAutoPixmapStorage.h"
 #include "SkBitmap.h"
@@ -17,6 +16,7 @@
 #include "SkImageEncoder.h"
 #include "SkImageGenerator.h"
 #include "SkImage_Base.h"
+#include "SkImagePriv.h"
 #include "SkPicture.h"
 #include "SkPictureRecorder.h"
 #include "SkPixelSerializer.h"
@@ -72,22 +72,22 @@ static sk_sp<SkImage> create_image() {
     draw_image_test_pattern(surface->getCanvas());
     return surface->makeImageSnapshot();
 }
-static SkData* create_image_data(SkImageInfo* info) {
+static sk_sp<SkData> create_image_data(SkImageInfo* info) {
     *info = SkImageInfo::MakeN32(20, 20, kOpaque_SkAlphaType);
     const size_t rowBytes = info->minRowBytes();
-    SkAutoTUnref<SkData> data(SkData::NewUninitialized(rowBytes * info->height()));
+    sk_sp<SkData> data(SkData::MakeUninitialized(rowBytes * info->height()));
     {
         SkBitmap bm;
         bm.installPixels(*info, data->writable_data(), rowBytes);
         SkCanvas canvas(bm);
         draw_image_test_pattern(&canvas);
     }
-    return data.release();
+    return data;
 }
 static sk_sp<SkImage> create_data_image() {
     SkImageInfo info;
     sk_sp<SkData> data(create_image_data(&info));
-    return SkImage::MakeRasterData(info, data, info.minRowBytes());
+    return SkImage::MakeRasterData(info, std::move(data), info.minRowBytes());
 }
 #if SK_SUPPORT_GPU // not gpu-specific but currently only used in GPU tests
 static sk_sp<SkImage> create_image_565() {
@@ -133,7 +133,7 @@ static sk_sp<SkImage> create_picture_image() {
 // Want to ensure that our Release is called when the owning image is destroyed
 struct RasterDataHolder {
     RasterDataHolder() : fReleaseCount(0) {}
-    SkAutoTUnref<SkData> fData;
+    sk_sp<SkData> fData;
     int fReleaseCount;
     static void Release(const void* pixels, void* context) {
         RasterDataHolder* self = static_cast<RasterDataHolder*>(context);
@@ -144,19 +144,17 @@ struct RasterDataHolder {
 static sk_sp<SkImage> create_rasterproc_image(RasterDataHolder* dataHolder) {
     SkASSERT(dataHolder);
     SkImageInfo info;
-    SkAutoTUnref<SkData> data(create_image_data(&info));
-    dataHolder->fData.reset(SkRef(data.get()));
-    return SkImage::MakeFromRaster(SkPixmap(info, data->data(), info.minRowBytes()),
+    dataHolder->fData = create_image_data(&info);
+    return SkImage::MakeFromRaster(SkPixmap(info, dataHolder->fData->data(), info.minRowBytes()),
                                    RasterDataHolder::Release, dataHolder);
 }
 static sk_sp<SkImage> create_codec_image() {
     SkImageInfo info;
-    SkAutoTUnref<SkData> data(create_image_data(&info));
+    sk_sp<SkData> data(create_image_data(&info));
     SkBitmap bitmap;
     bitmap.installPixels(info, data->writable_data(), info.minRowBytes());
-    sk_sp<SkData> src(
-        SkImageEncoder::EncodeData(bitmap, SkImageEncoder::kPNG_Type, 100));
-    return SkImage::MakeFromEncoded(src);
+    sk_sp<SkData> src(SkImageEncoder::EncodeData(bitmap, SkImageEncoder::kPNG_Type, 100));
+    return SkImage::MakeFromEncoded(std::move(src));
 }
 #if SK_SUPPORT_GPU
 static sk_sp<SkImage> create_gpu_image(GrContext* context) {
@@ -194,13 +192,43 @@ DEF_GPUTEST_FOR_RENDERING_CONTEXTS(ImageEncode_Gpu, reporter, ctxInfo) {
 }
 #endif
 
+DEF_TEST(Image_MakeFromRasterBitmap, reporter) {
+    const struct {
+        ForceCopyMode fMode;
+        bool          fExpectSameAsMutable;
+        bool          fExpectSameAsImmutable;
+    } recs[] = {
+        { kNo_ForceCopyMode,    false,  true },
+        { kYes_ForceCopyMode,   false,  false },
+        { kNever_ForceCopyMode, true,   true },
+    };
+    for (auto rec : recs) {
+        SkPixmap pm;
+        SkBitmap bm;
+        bm.allocN32Pixels(100, 100);
+
+        auto img = SkMakeImageFromRasterBitmap(bm, rec.fMode);
+        REPORTER_ASSERT(reporter, img->peekPixels(&pm));
+        const bool sameMutable = pm.addr32(0, 0) == bm.getAddr32(0, 0);
+        REPORTER_ASSERT(reporter, rec.fExpectSameAsMutable == sameMutable);
+
+        bm.notifyPixelsChanged();   // force a new generation ID
+
+        bm.setImmutable();
+        img = SkMakeImageFromRasterBitmap(bm, rec.fMode);
+        REPORTER_ASSERT(reporter, img->peekPixels(&pm));
+        const bool sameImmutable = pm.addr32(0, 0) == bm.getAddr32(0, 0);
+        REPORTER_ASSERT(reporter, rec.fExpectSameAsImmutable == sameImmutable);
+    }
+}
+
 namespace {
 
 const char* kSerializedData = "serialized";
 
 class MockSerializer : public SkPixelSerializer {
 public:
-    MockSerializer(SkData* (*func)()) : fFunc(func), fDidEncode(false) { }
+    MockSerializer(sk_sp<SkData> (*func)()) : fFunc(func), fDidEncode(false) { }
 
     bool didEncode() const { return fDidEncode; }
 
@@ -211,11 +239,11 @@ protected:
 
     SkData* onEncode(const SkPixmap&) override {
         fDidEncode = true;
-        return fFunc();
+        return fFunc().release();
     }
 
 private:
-    SkData* (*fFunc)();
+    sk_sp<SkData> (*fFunc)();
     bool fDidEncode;
 
     typedef SkPixelSerializer INHERITED;
@@ -225,15 +253,17 @@ private:
 
 // Test that SkImage encoding observes custom pixel serializers.
 DEF_TEST(Image_Encode_Serializer, reporter) {
-    MockSerializer serializer([]() -> SkData* { return SkData::NewWithCString(kSerializedData); });
+    MockSerializer serializer([]() -> sk_sp<SkData> {
+        return SkData::MakeWithCString(kSerializedData);
+    });
     sk_sp<SkImage> image(create_image());
-    SkAutoTUnref<SkData> encoded(image->encode(&serializer));
-    SkAutoTUnref<SkData> reference(SkData::NewWithCString(kSerializedData));
+    sk_sp<SkData> encoded(image->encode(&serializer));
+    sk_sp<SkData> reference(SkData::MakeWithCString(kSerializedData));
 
     REPORTER_ASSERT(reporter, serializer.didEncode());
     REPORTER_ASSERT(reporter, encoded);
     REPORTER_ASSERT(reporter, encoded->size() > 0);
-    REPORTER_ASSERT(reporter, encoded->equals(reference));
+    REPORTER_ASSERT(reporter, encoded->equals(reference.get()));
 }
 
 // Test that image encoding failures do not break picture serialization/deserialization.
@@ -250,8 +280,8 @@ DEF_TEST(Image_Serialize_Encoding_Failure, reporter) {
     REPORTER_ASSERT(reporter, picture);
     REPORTER_ASSERT(reporter, picture->approximateOpCount() > 0);
 
-    MockSerializer emptySerializer([]() -> SkData* { return SkData::NewEmpty(); });
-    MockSerializer nullSerializer([]() -> SkData* { return nullptr; });
+    MockSerializer emptySerializer([]() -> sk_sp<SkData> { return SkData::MakeEmpty(); });
+    MockSerializer nullSerializer([]() -> sk_sp<SkData> { return nullptr; });
     MockSerializer* serializers[] = { &emptySerializer, &nullSerializer };
 
     for (size_t i = 0; i < SK_ARRAY_COUNT(serializers); ++i) {
@@ -970,11 +1000,11 @@ DEF_TEST(image_roundtrip_encode, reporter) {
     auto img0 = SkImage::MakeFromBitmap(bm0);
     sk_sp<SkData> data(img0->encode(SkImageEncoder::kPNG_Type, 100));
     auto img1 = SkImage::MakeFromEncoded(data);
-    
+
     SkBitmap bm1;
     bm1.allocPixels(SkImageInfo::MakeN32(256, 256, kPremul_SkAlphaType));
     img1->readPixels(bm1.info(), bm1.getPixels(), bm1.rowBytes(), 0, 0);
-    
+
     REPORTER_ASSERT(reporter, equal(bm0, bm1));
 }
 

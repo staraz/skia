@@ -80,6 +80,8 @@ public:
 
     bool onReadPixels(const SkImageInfo&, void*, size_t, int srcX, int srcY, CachingHint) const override;
     bool onPeekPixels(SkPixmap*) const override;
+    const SkBitmap* onPeekBitmap() const override { return &fBitmap; }
+
     SkData* onRefEncoded(GrContext*) const override;
     bool getROPixels(SkBitmap*, CachingHint) const override;
     GrTexture* asTextureRef(GrContext*, const GrTextureParams&,
@@ -94,7 +96,7 @@ public:
     bool isOpaque() const override;
     bool onAsLegacyBitmap(SkBitmap*, LegacyBitmapMode) const override;
 
-    SkImage_Raster(const SkBitmap& bm)
+    SkImage_Raster(const SkBitmap& bm, bool bitmapMayBeMutable = false)
         : INHERITED(bm.width(), bm.height(),
                     is_not_subset(bm) ? bm.getGenerationID()
                                       : (uint32_t)kNeedNewImageUniqueID)
@@ -105,7 +107,7 @@ public:
             // like a lazy decode or imagegenerator. PreLocked means it is flat pixels already.
             fBitmap.lockPixels();
         }
-        SkASSERT(fBitmap.isImmutable());
+        SkASSERT(bitmapMayBeMutable || fBitmap.isImmutable());
     }
 
     bool onIsLazyGenerated() const override {
@@ -212,7 +214,7 @@ sk_sp<SkImage> SkImage::MakeRasterCopy(const SkPixmap& pmap) {
     }
 
     // Here we actually make a copy of the caller's pixel data
-    sk_sp<SkData> data(SkData::NewWithCopy(pmap.addr(), size));
+    sk_sp<SkData> data(SkData::MakeWithCopy(pmap.addr(), size));
     return sk_make_sp<SkImage_Raster>(pmap.info(), std::move(data), pmap.rowBytes(), pmap.ctable());
 }
 
@@ -240,7 +242,7 @@ sk_sp<SkImage> SkImage::MakeFromRaster(const SkPixmap& pmap, RasterReleaseProc p
         return nullptr;
     }
 
-    sk_sp<SkData> data(SkData::NewWithProc(pmap.addr(), size, proc, ctx));
+    sk_sp<SkData> data(SkData::MakeWithProc(pmap.addr(), size, proc, ctx));
     return sk_make_sp<SkImage_Raster>(pmap.info(), std::move(data), pmap.rowBytes(), pmap.ctable());
 }
 
@@ -264,7 +266,9 @@ sk_sp<SkImage> SkMakeImageFromRasterBitmap(const SkBitmap& bm, ForceCopyMode for
     }
 
     sk_sp<SkImage> image;
-    if (kYes_ForceCopyMode == forceCopy || !bm.isImmutable()) {
+    if (kYes_ForceCopyMode == forceCopy ||
+        (!bm.isImmutable() && kNever_ForceCopyMode != forceCopy))
+    {
         SkBitmap tmp(bm);
         tmp.lockPixels();
         SkPixmap pmap;
@@ -272,7 +276,7 @@ sk_sp<SkImage> SkMakeImageFromRasterBitmap(const SkBitmap& bm, ForceCopyMode for
             image = SkImage::MakeRasterCopy(pmap);
         }
     } else {
-        image = sk_make_sp<SkImage_Raster>(bm);
+        image = sk_make_sp<SkImage_Raster>(bm, kNever_ForceCopyMode == forceCopy);
     }
     return image;
 }

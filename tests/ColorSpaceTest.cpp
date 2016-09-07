@@ -113,10 +113,17 @@ DEF_TEST(ColorSpaceSRGBCompare, r) {
     REPORTER_ASSERT(r, strangeColorSpace != namedColorSpace);
 }
 
+class ColorSpaceTest {
+public:
+    static sk_sp<SkData> WriteToICC(SkColorSpace* space) {
+        return as_CSB(space)->writeToICC();
+    }
+};
+
 DEF_TEST(ColorSpaceWriteICC, r) {
     // Test writing a new ICC profile
     sk_sp<SkColorSpace> namedColorSpace = SkColorSpace::NewNamed(SkColorSpace::kSRGB_Named);
-    sk_sp<SkData> namedData = as_CSB(namedColorSpace)->writeToICC();
+    sk_sp<SkData> namedData = ColorSpaceTest::WriteToICC(namedColorSpace.get());
     sk_sp<SkColorSpace> iccColorSpace = SkColorSpace::NewICC(namedData->data(), namedData->size());
     test_space(r, iccColorSpace.get(), g_sRGB_XYZ, &g_sRGB_XYZ[3], &g_sRGB_XYZ[6],
                SkColorSpace::k2Dot2Curve_GammaNamed);
@@ -132,7 +139,7 @@ DEF_TEST(ColorSpaceWriteICC, r) {
     }
     sk_sp<SkColorSpace> monitorSpace = SkColorSpace::NewICC(monitorData->data(),
                                                             monitorData->size());
-    sk_sp<SkData> newMonitorData = as_CSB(monitorSpace)->writeToICC();
+    sk_sp<SkData> newMonitorData = ColorSpaceTest::WriteToICC(monitorSpace.get());
     sk_sp<SkColorSpace> newMonitorSpace = SkColorSpace::NewICC(newMonitorData->data(),
                                                                newMonitorData->size());
     REPORTER_ASSERT(r, monitorSpace->xyz() == newMonitorSpace->xyz());
@@ -221,3 +228,34 @@ DEF_TEST(ColorSpace_Serialize, r) {
     test_serialize(r, SkColorSpace::NewICC(monitorData->data(), monitorData->size()).get(), false);
 }
 
+DEF_TEST(ColorSpace_Equals, r) {
+    sk_sp<SkColorSpace> srgb = SkColorSpace::NewNamed(SkColorSpace::kSRGB_Named);
+    sk_sp<SkColorSpace> adobe = SkColorSpace::NewNamed(SkColorSpace::kAdobeRGB_Named);
+    sk_sp<SkData> data = SkData::MakeFromFileName(
+            GetResourcePath("icc_profiles/HP_ZR30w.icc").c_str());
+    sk_sp<SkColorSpace> z30 = SkColorSpace::NewICC(data->data(), data->size());
+    data = SkData::MakeFromFileName( GetResourcePath("icc_profiles/HP_Z32x.icc").c_str());
+    sk_sp<SkColorSpace> z32 = SkColorSpace::NewICC(data->data(), data->size());
+    data = SkData::MakeFromFileName(GetResourcePath("icc_profiles/upperLeft.icc").c_str());
+    sk_sp<SkColorSpace> upperLeft = SkColorSpace::NewICC(data->data(), data->size());
+    data = SkData::MakeFromFileName(GetResourcePath("icc_profiles/upperRight.icc").c_str());
+    sk_sp<SkColorSpace> upperRight = SkColorSpace::NewICC(data->data(), data->size());
+
+    REPORTER_ASSERT(r, SkColorSpace::Equals(nullptr, nullptr));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(srgb.get(), srgb.get()));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(adobe.get(), adobe.get()));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(z30.get(), z30.get()));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(z32.get(), z32.get()));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(upperLeft.get(), upperLeft.get()));
+    REPORTER_ASSERT(r, SkColorSpace::Equals(upperRight.get(), upperRight.get()));
+
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(nullptr, srgb.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(srgb.get(), nullptr));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(adobe.get(), srgb.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(z30.get(), srgb.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(z32.get(), z30.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(upperLeft.get(), srgb.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(upperLeft.get(), upperRight.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(z30.get(), upperRight.get()));
+    REPORTER_ASSERT(r, !SkColorSpace::Equals(upperRight.get(), adobe.get()));
+}

@@ -353,6 +353,10 @@ bool SkJpegCodec::onRewind() {
     fStorage.reset();
     fColorXform.reset(nullptr);
 
+#if !defined(TURBO_HAS_SKIP)
+    fSkipStorage.reset();
+#endif
+
     return true;
 }
 
@@ -475,10 +479,9 @@ bool SkJpegCodec::onDimensionsSupported(const SkISize& size) {
 }
 
 static bool needs_color_xform(const SkImageInfo& dstInfo, const SkImageInfo& srcInfo) {
-    // FIXME (msarett):
-    // Do a better check for color space equality.
     return (kRGBA_F16_SkColorType == dstInfo.colorType()) ||
-           (dstInfo.colorSpace() && (dstInfo.colorSpace() != srcInfo.colorSpace()));
+           (dstInfo.colorSpace() && !SkColorSpace::Equals(srcInfo.colorSpace(),
+                                                          dstInfo.colorSpace()));
 }
 
 int SkJpegCodec::readRows(const SkImageInfo& dstInfo, void* dst, size_t rowBytes, int count) {
@@ -789,13 +792,14 @@ bool SkJpegCodec::onSkipScanlines(int count) {
 #ifdef TURBO_HAS_SKIP
     return (uint32_t) count == jpeg_skip_scanlines(fDecoderMgr->dinfo(), count);
 #else
-    if (!fSwizzleSrcRow) {
-        fStorage.reset(get_row_bytes(fDecoderMgr->dinfo()));
-        fSwizzleSrcRow = fStorage.get();
+    uint8_t* ptr = fSkipStorage.get();
+    if (!ptr) {
+        fSkipStorage.reset(get_row_bytes(fDecoderMgr->dinfo()));
+        ptr = fSkipStorage.get();
     }
 
     for (int y = 0; y < count; y++) {
-        if (1 != jpeg_read_scanlines(fDecoderMgr->dinfo(), &fSwizzleSrcRow, 1)) {
+        if (1 != jpeg_read_scanlines(fDecoderMgr->dinfo(), &ptr, 1)) {
             return false;
         }
     }
