@@ -81,6 +81,7 @@ public:
     void setFontData(SkFontData* data) { fFontData.reset(data); }
 
 private:
+    static SkString GetKey(const SkFontDescriptor& desc, uint32_t styleBits);
     SkString fFamilyName;
     SkString fFullName;
     SkString fPostscriptName;

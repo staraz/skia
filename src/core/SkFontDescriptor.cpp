@@ -66,10 +66,8 @@ SkFontDescriptor& SkFontDescriptor::operator=(const SkFontDescriptor& other) {
     this->fFamilyName = other.fFamilyName;
     this->fFullName = other.fFullName;
     this->fPostscriptName = other.fPostscriptName;
-    if (other.hasFontData()){
+    if (other.hasFontData())
         this->fFontData.reset(new SkFontData(*other.fFontData.get()));
-        printf("fFontData copied.\n");
-    }
 
     this->fStyle = other.fStyle;
     return *this;
@@ -91,7 +89,6 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
     size_t axisCount = 0;
     size_t index = 0;
     for (size_t id; (id = stream->readPackedUInt()) != kSentinel;) {
-        // printf("%zu\n", id);
         switch (id) {
             case kCacheIndex:
             {
@@ -110,7 +107,6 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
             // Read the SkFontDescptor from stream and add it to cache
             case kFontFamilyName:
                 read_string(stream, &result->fFamilyName);
-                printf("Family name: %s\n", result->fFullName.c_str());
                 break;
             case kFullName:
                 read_string(stream, &result->fFullName);
@@ -119,7 +115,6 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
                 read_string(stream, &result->fPostscriptName);
                 break;
             case kFontAxes:
-                printf("ID is kFontAxes!\n");
                 axisCount = read_uint(stream);
                 axis.reset(axisCount);
                 for (size_t i = 0; i < axisCount; ++i) {
@@ -150,9 +145,7 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
         }
     }
     // Add result in cache
-    if (result->fFamilyName.size())
-        deserializeCache[std::string(result->fFamilyName.c_str())] = *result;
-    // printf("Result added in deserialize cache.\n");
+    deserializeCache[std::string(GetKey(*result, styleBits).c_str())] = *result;
     return true;
 }
 
@@ -160,7 +153,8 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
 void SkFontDescriptor::serialize(SkWStream* stream) {
     uint32_t styleBits = (fStyle.weight() << 16) | (fStyle.width() << 8) | (fStyle.slant());
     stream->writePackedUInt(styleBits);
-    auto search = fSerializeCache.find(std::string(fFamilyName.c_str()));
+    SkString key = GetKey(*this, styleBits);
+    auto search = fSerializeCache.find(key.c_str());
     if (search == fSerializeCache.end()) {
         // Font hasn't been cached yet. Serialize font as usual.
         write_string(stream, fFamilyName, kFontFamilyName);
@@ -188,15 +182,19 @@ void SkFontDescriptor::serialize(SkWStream* stream) {
         } else {
             stream->writePackedUInt(0);
         }
-        // TODO(staraz): Kludge: Some SkFontDescriptor doesn't have family name
-        // or full name or any identifier in this matter. Find a way to cache
-        // those
-        if (fFamilyName.size())
-            fSerializeCache[std::string(fFamilyName.c_str())] = *this;
+        // Generate cache key
+        fSerializeCache[std::string(key.c_str())] = *this;
     } else {
-        // printf("Sending cache ID instead.\n");
         // Font is already cached. Serialize the key only
-        // TODO(staraz): Use better keys for caching
-            write_string(stream, fFamilyName, kCacheIndex);
+        write_string(stream, key, kCacheIndex);
     }
+}
+
+// static
+SkString SkFontDescriptor::GetKey(const SkFontDescriptor& desc, uint32_t styleBits) {
+    SkString skst;
+    skst.append(desc.fFamilyName);
+    skst.appendU32(styleBits);
+
+    return skst;
 }

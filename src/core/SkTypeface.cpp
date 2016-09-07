@@ -173,7 +173,6 @@ void SkTypeface::serialize(SkWStream* wstream) const {
 
     // Embed font data if it's a local font.
     if (isLocal && !desc.hasFontData()) {
-        // TODO(staraz): Mark the nameless fonts here
         desc.setFontData(this->onCreateFontData());
     }
     desc.serialize(wstream);
