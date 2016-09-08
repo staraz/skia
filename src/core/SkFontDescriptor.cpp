@@ -183,7 +183,6 @@ void SkFontDescriptor::serialize(SkWStream* stream) {
             stream->writePackedUInt(0);
         }
         // Generate cache key
-        printf("Adding font to cache with key: %s\n", key.c_str());
         fSerializeCache[std::string(key.c_str())] = *this;
     } else {
         // Font is already cached. Serialize the key only
