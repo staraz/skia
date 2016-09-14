@@ -119,7 +119,7 @@ public:
      *  Serialize to a stream. If non NULL, serializer will be used to serialize
      *  bitmaps and images in the picture.
      */
-    void serialize(SkWStream*, SkPixelSerializer* = NULL) const;
+    void serialize(SkWStream*, SkPixelSerializer* = NULL, bool flush_cache = false) const;
 
     /**
      *  Serialize to a buffer.
@@ -187,7 +187,7 @@ private:
     friend class SkEmptyPicture;
     template <typename> friend class SkMiniPicture;
 
-    void serialize(SkWStream*, SkPixelSerializer*, SkRefCntSet* typefaces) const;
+    void serialize(SkWStream*, SkPixelSerializer*, SkRefCntSet* typefaces, bool flush_cache = false) const;
     static sk_sp<SkPicture> MakeFromStream(SkStream*, InstallPixelRefProc, SkTypefacePlayback*);
     friend class SkPictureData;
 

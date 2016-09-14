@@ -23,7 +23,7 @@ enum {
     kFontFileName   = 0xFE,  // Remove when MIN_PICTURE_VERSION > 41
     kSentinel       = 0xFF,
 };
-std::unordered_map<std::string, SkFontDescriptor> SkFontDescriptor::fSerializeCache;
+// std::unordered_map<std::string, SkFontDescriptor> SkFontDescriptor::fSerializeCache;
 
 static void read_string(SkStream* stream, SkString* string) {
     const uint32_t length = SkToU32(stream->readPackedUInt());
@@ -150,13 +150,15 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
 }
 
 // TODO(staraz): Find the source of the the anonymous SkFontDescriptors
-void SkFontDescriptor::serialize(SkWStream* stream) {
+void SkFontDescriptor::serialize(
+    SkWStream* stream,
+    std::unordered_map<std::string, SkFontDescriptor>* fontCache) {
     uint32_t styleBits = (fStyle.weight() << 16) | (fStyle.width() << 8) | (fStyle.slant());
     stream->writePackedUInt(styleBits);
     SkString key = GetKey(*this, styleBits);
-    auto search = fSerializeCache.find(key.c_str());
-    if (search == fSerializeCache.end()) {
-        // Font hasn't been cached yet. Serialize font as usual.
+    if (fontCache != nullptr && fontCache->find(key.c_str()) != fontCache->end()) {
+        write_string(stream, key, kCacheIndex);
+    } else {
         write_string(stream, fFamilyName, kFontFamilyName);
         write_string(stream, fFullName, kFullName);
         write_string(stream, fPostscriptName, kPostscriptName);
@@ -182,11 +184,8 @@ void SkFontDescriptor::serialize(SkWStream* stream) {
         } else {
             stream->writePackedUInt(0);
         }
-        // Generate cache key
-        fSerializeCache[std::string(key.c_str())] = *this;
-    } else {
-        // Font is already cached. Serialize the key only
-        write_string(stream, key, kCacheIndex);
+        if (fontCache != nullptr)
+            (*fontCache)[std::string(key.c_str())] = *this;
     }
 }
 

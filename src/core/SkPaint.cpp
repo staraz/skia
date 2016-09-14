@@ -2072,7 +2072,7 @@ void SkPaint::toString(SkString* str) const {
     SkTypeface* typeface = this->getTypeface();
     if (typeface) {
         SkDynamicMemoryWStream ostream;
-        typeface->serialize(&ostream);
+        typeface->serialize(&ostream, nullptr);
         SkAutoTDelete<SkStreamAsset> istream(ostream.detachAsStream());
 
         SkFontDescriptor descriptor;

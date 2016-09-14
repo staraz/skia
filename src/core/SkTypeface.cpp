@@ -162,7 +162,9 @@ sk_sp<SkTypeface> SkTypeface::MakeFromFile(const char path[], int index) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SkTypeface::serialize(SkWStream* wstream) const {
+void SkTypeface::serialize(
+    SkWStream* wstream,
+    std::unordered_map<std::string, SkFontDescriptor>* fontCache) const {
     if (gSerializeTypefaceDelegate) {
         (*gSerializeTypefaceDelegate)(this, wstream);
         return;
@@ -175,7 +177,7 @@ void SkTypeface::serialize(SkWStream* wstream) const {
     if (isLocal && !desc.hasFontData()) {
         desc.setFontData(this->onCreateFontData());
     }
-    desc.serialize(wstream);
+    desc.serialize(wstream, fontCache);
 }
 
 sk_sp<SkTypeface> SkTypeface::MakeDeserialize(SkStream* stream) {

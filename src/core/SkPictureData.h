@@ -8,8 +8,11 @@
 #ifndef SkPictureData_DEFINED
 #define SkPictureData_DEFINED
 
+#include <unordered_map>
+
 #include "SkBitmap.h"
 #include "SkDrawable.h"
+#include "SkFontDescriptor.h"
 #include "SkPicture.h"
 #include "SkPictureContentInfo.h"
 #include "SkPictureFlat.h"
@@ -70,7 +73,7 @@ public:
 
     virtual ~SkPictureData();
 
-    void serialize(SkWStream*, SkPixelSerializer*, SkRefCntSet*) const;
+    void serialize(SkWStream*, SkPixelSerializer*, SkRefCntSet*, bool flush_cache = false) const;
     void flatten(SkWriteBuffer&) const;
 
     bool containsBitmaps() const;
@@ -170,6 +173,8 @@ private:
     int fTextBlobCount;
     const SkImage** fImageRefs;
     int fImageCount;
+
+    static std::unordered_map<std::string, SkFontDescriptor> fFontCache;
 
     SkPictureContentInfo fContentInfo;
 

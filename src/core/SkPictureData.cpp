@@ -17,6 +17,8 @@
 #include "GrContext.h"
 #endif
 
+std::unordered_map<std::string, SkFontDescriptor> SkPictureData::fFontCache;
+
 template <typename T> int SafeCount(const T* obj) {
     return obj ? obj->count() : 0;
 }
@@ -216,7 +218,7 @@ void SkPictureData::WriteTypefaces(SkWStream* stream, const SkRefCntSet& rec) {
     rec.copyToArray((SkRefCnt**)array);
 
     for (int i = 0; i < count; i++) {
-        array[i]->serialize(stream);
+        array[i]->serialize(stream, &fFontCache);
     }
 }
 
@@ -260,9 +262,14 @@ void SkPictureData::flattenToBuffer(SkWriteBuffer& buffer) const {
     }
 }
 
+// TODO(staraz): Let SkPictureData hold the cache and flush it here
 void SkPictureData::serialize(SkWStream* stream,
                               SkPixelSerializer* pixelSerializer,
-                              SkRefCntSet* topLevelTypeFaceSet) const {
+                              SkRefCntSet* topLevelTypeFaceSet,
+                              bool flush_cache) const {
+    if (flush_cache) {
+        fFontCache.clear();
+    }
     // This can happen at pretty much any time, so might as well do it first.
     write_tag_size(stream, SK_PICT_READER_TAG, fOpData->size());
     stream->write(fOpData->bytes(), fOpData->size());
@@ -312,6 +319,7 @@ void SkPictureData::serialize(SkWStream* stream,
     }
 
     stream->write32(SK_PICT_EOF_TAG);
+
 }
 
 void SkPictureData::flatten(SkWriteBuffer& buffer) const {

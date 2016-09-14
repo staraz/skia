@@ -184,20 +184,24 @@ SkPictureData* SkPicture::backport() const {
     return new SkPictureData(rec, info);
 }
 
-void SkPicture::serialize(SkWStream* stream, SkPixelSerializer* pixelSerializer) const {
-    this->serialize(stream, pixelSerializer, nullptr);
+void SkPicture::serialize(
+    SkWStream* stream,
+    SkPixelSerializer* pixelSerializer,
+    bool flush_cache) const {
+    this->serialize(stream, pixelSerializer, nullptr, flush_cache);
 }
 
 void SkPicture::serialize(SkWStream* stream,
                           SkPixelSerializer* pixelSerializer,
-                          SkRefCntSet* typefaceSet) const {
+                          SkRefCntSet* typefaceSet,
+                          bool flush_cache) const {
     SkPictInfo info = this->createHeader();
     SkAutoTDelete<SkPictureData> data(this->backport());
 
     stream->write(&info, sizeof(info));
     if (data) {
         stream->writeBool(true);
-        data->serialize(stream, pixelSerializer, typefaceSet);
+        data->serialize(stream, pixelSerializer, typefaceSet, flush_cache);
     } else {
         stream->writeBool(false);
     }

@@ -62,7 +62,9 @@ public:
     // Does not affect ownership of SkStream.
     static bool Deserialize(SkStream*, SkFontDescriptor* result);
 
-    void serialize(SkWStream*);
+    void serialize(
+        SkWStream*,
+        std::unordered_map<std::string, SkFontDescriptor>* fontCache = nullptr);
 
     SkFontStyle getStyle() { return fStyle; }
     void setStyle(SkFontStyle style) { fStyle = style; }
@@ -89,7 +91,7 @@ private:
 
     SkFontStyle fStyle;
 
-    static std::unordered_map<std::string, SkFontDescriptor> fSerializeCache;
+    // static std::unordered_map<std::string, SkFontDescriptor> fSerializeCache;
  };
 
 #endif // SkFontDescriptor_DEFINED
