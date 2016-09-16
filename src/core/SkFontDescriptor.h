@@ -64,7 +64,7 @@ public:
 
     void serialize(
         SkWStream*,
-        std::unordered_map<std::string, SkFontDescriptor>* fontCache = nullptr);
+        std::unordered_map<uint32_t, SkFontDescriptor>* fontCache = nullptr);
 
     SkFontStyle getStyle() { return fStyle; }
     void setStyle(SkFontStyle style) { fStyle = style; }
@@ -83,7 +83,7 @@ public:
     void setFontData(SkFontData* data) { fFontData.reset(data); }
 
 private:
-    static SkString GetKey(const SkFontDescriptor& desc, uint32_t styleBits);
+    static uint32_t GetKey(const SkFontDescriptor& desc, uint32_t styleBits);
     SkString fFamilyName;
     SkString fFullName;
     SkString fPostscriptName;

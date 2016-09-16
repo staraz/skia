@@ -5,6 +5,7 @@
  * found in the LICENSE file.
  */
 
+#include "SkChecksum.h"
 #include "SkFontDescriptor.h"
 #include "SkStream.h"
 #include "SkData.h"
@@ -73,8 +74,9 @@ SkFontDescriptor& SkFontDescriptor::operator=(const SkFontDescriptor& other) {
     return *this;
 }
 
+// TODO(staraz): Let something hold the cache
 bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
-    static std::unordered_map<std::string, SkFontDescriptor> deserializeCache;
+    static std::unordered_map<uint32_t, SkFontDescriptor> deserializeCache;
     size_t styleBits = stream->readPackedUInt();
     if (styleBits <= 2) {
         // Remove this branch when MIN_PICTURE_VERSION > 45
@@ -92,9 +94,9 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
         switch (id) {
             case kCacheIndex:
             {
-                SkString key;
-                read_string(stream, &key);
-                auto search = deserializeCache.find(std::string(key.c_str()));
+                uint32_t key = read_uint(stream);
+
+                auto search = deserializeCache.find(key);
                 if (search != deserializeCache.end()) {
                     // Retrieve SkFontDescriptor from the cache
                     *result = search->second;
@@ -145,19 +147,19 @@ bool SkFontDescriptor::Deserialize(SkStream* stream, SkFontDescriptor* result) {
         }
     }
     // Add result in cache
-    deserializeCache[std::string(GetKey(*result, styleBits).c_str())] = *result;
+    deserializeCache[GetKey(*result, styleBits)] = *result;
     return true;
 }
 
 // TODO(staraz): Find the source of the the anonymous SkFontDescriptors
 void SkFontDescriptor::serialize(
     SkWStream* stream,
-    std::unordered_map<std::string, SkFontDescriptor>* fontCache) {
+    std::unordered_map<uint32_t, SkFontDescriptor>* fontCache) {
     uint32_t styleBits = (fStyle.weight() << 16) | (fStyle.width() << 8) | (fStyle.slant());
     stream->writePackedUInt(styleBits);
-    SkString key = GetKey(*this, styleBits);
-    if (fontCache != nullptr && fontCache->find(key.c_str()) != fontCache->end()) {
-        write_string(stream, key, kCacheIndex);
+    uint32_t key = GetKey(*this, styleBits);
+    if (fontCache != nullptr && fontCache->find(key) != fontCache->end()) {
+        write_uint(stream, key, kCacheIndex);
     } else {
         write_string(stream, fFamilyName, kFontFamilyName);
         write_string(stream, fFullName, kFullName);
@@ -185,18 +187,17 @@ void SkFontDescriptor::serialize(
             stream->writePackedUInt(0);
         }
         if (fontCache != nullptr)
-            (*fontCache)[std::string(key.c_str())] = *this;
+            (*fontCache)[key] = *this;
     }
 }
 
 // static
-SkString SkFontDescriptor::GetKey(const SkFontDescriptor& desc, uint32_t styleBits) {
+uint32_t SkFontDescriptor::GetKey(const SkFontDescriptor& desc, uint32_t styleBits) {
     SkString skst;
     skst.append(desc.fFamilyName);
     skst.appendU32(styleBits);
     if (desc.hasFontData() && desc.fFontData->hasStream()) {
         skst.appendU64(desc.fFontData->getStream()->getLength());
     }
-
-    return skst;
+    return SkGoodHash()(skst);
 }

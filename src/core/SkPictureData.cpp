@@ -17,7 +17,7 @@
 #include "GrContext.h"
 #endif
 
-std::unordered_map<std::string, SkFontDescriptor> SkPictureData::fFontCache;
+std::unordered_map<uint32_t, SkFontDescriptor> SkPictureData::fFontCache;
 
 template <typename T> int SafeCount(const T* obj) {
     return obj ? obj->count() : 0;

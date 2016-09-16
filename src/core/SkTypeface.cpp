@@ -164,7 +164,7 @@ sk_sp<SkTypeface> SkTypeface::MakeFromFile(const char path[], int index) {
 
 void SkTypeface::serialize(
     SkWStream* wstream,
-    std::unordered_map<std::string, SkFontDescriptor>* fontCache) const {
+    std::unordered_map<uint32_t, SkFontDescriptor>* fontCache) const {
     if (gSerializeTypefaceDelegate) {
         (*gSerializeTypefaceDelegate)(this, wstream);
         return;

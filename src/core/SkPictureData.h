@@ -174,7 +174,7 @@ private:
     const SkImage** fImageRefs;
     int fImageCount;
 
-    static std::unordered_map<std::string, SkFontDescriptor> fFontCache;
+    static std::unordered_map<uint32_t, SkFontDescriptor> fFontCache;
 
     SkPictureContentInfo fContentInfo;
 

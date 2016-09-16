@@ -159,7 +159,7 @@ public:
     /** Write a unique signature to a stream, sufficient to reconstruct a
         typeface referencing the same font when Deserialize is called.
      */
-    void serialize(SkWStream*, std::unordered_map<std::string, SkFontDescriptor>* fontCache) const;
+    void serialize(SkWStream*, std::unordered_map<uint32_t, SkFontDescriptor>* fontCache) const;
 
     /** Given the data previously written by serialize(), return a new instance
         of a typeface referring to the same font. If that font is not available,
